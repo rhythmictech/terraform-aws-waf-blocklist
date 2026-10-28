@@ -1,0 +1,25 @@
+#  Local .terraform directories
+**/.terraform/*
+
+# .tfstate files
+*.tfstate
+*.tfstate.*
+
+# .tfvars files
+*.tfvars
+
+# macs
+.DS_Store
+
+# temp folders
+tmp
+
+# modules should not submit lock files
+.terraform.lock.hcl
+
+lambda/*.zip
+
+**/__pycache__
+
+examples/**/.terraform.lock.hcl
+.claude/

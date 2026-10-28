@@ -1,0 +1,50 @@
+exclude: ".terraform"
+repos:
+  - repo: https://github.com/antonbabenko/pre-commit-terraform
+    rev: v1.88.0
+    hooks:
+      - id: terraform_docs
+        always_run: true
+      - id: terraform_fmt
+      - id: terraform_validate
+        args:
+        - --hook-config=--retry-once-with-cleanup=true
+      - id: terraform_tflint
+        alias: terraform_tflint_nocreds
+        name: terraform_tflint_nocreds
+      - id: terraform_trivy
+      - id: terraform_providers_lock
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: check-added-large-files
+      - id: check-case-conflict
+      - id: check-json
+      - id: check-merge-conflict
+      - id: check-symlinks
+      - id: check-yaml
+        args:
+          - --unsafe
+      - id: detect-private-key
+      - id: end-of-file-fixer
+      - id: mixed-line-ending
+        args:
+          - --fix=lf
+      - id: no-commit-to-branch
+        args:
+          - --branch
+          - main
+          - --branch
+          - master
+          - --branch
+          - prod
+      - id: pretty-format-json
+        args:
+          - --autofix
+          - --top-keys=name,Name
+      - id: trailing-whitespace
+        args:
+          - --markdown-linebreak-ext=md
+        exclude: README.md
+ci:
+  skip: [terraform_docs, terraform_fmt, terraform_tflint, terraform_tfsec, tflock]
