@@ -101,7 +101,8 @@ resource "aws_cloudwatch_log_group" "reconciler" {
   tags              = local.tags
 }
 
-#tfsec:ignore:avd-aws-0066 tracing adds nothing for a two-call batch job
+# X-Ray tracing adds nothing for a two-call batch job.
+#trivy:ignore:AVD-AWS-0066
 resource "aws_lambda_function" "reconciler" {
   function_name    = "${var.name}-reconciler"
   description      = "Reconciles the ${var.name} table into ${length(var.targets)} WAFv2 IP set(s)"

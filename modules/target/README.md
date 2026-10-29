@@ -24,9 +24,6 @@ module "blocklist_target" {
 ```
 
 <!-- BEGINNING OF PRE-COMMIT-TERRAFORM DOCS HOOK -->
-<!-- END OF PRE-COMMIT-TERRAFORM DOCS HOOK -->
-
-<!-- BEGIN_TF_DOCS -->
 ## Requirements
 
 | Name | Version |
@@ -38,7 +35,7 @@ module "blocklist_target" {
 
 | Name | Version |
 |------|---------|
-| <a name="provider_aws"></a> [aws](#provider\_aws) | >= 5.40 |
+| <a name="provider_aws"></a> [aws](#provider\_aws) | 6.71.0 |
 
 ## Modules
 
@@ -73,4 +70,4 @@ module "blocklist_target" {
 | <a name="output_created_ip_sets"></a> [created\_ip\_sets](#output\_created\_ip\_sets) | Map of created IP set name to its ARN and id |
 | <a name="output_ip_set_arns"></a> [ip\_set\_arns](#output\_ip\_set\_arns) | ARNs of every IP set the role may update (created and pre-existing). Each goes into the root module's targets with role\_arn set to role\_arn |
 | <a name="output_role_arn"></a> [role\_arn](#output\_role\_arn) | ARN of the role the reconciler assumes for this account |
-<!-- END_TF_DOCS -->
+<!-- END OF PRE-COMMIT-TERRAFORM DOCS HOOK -->

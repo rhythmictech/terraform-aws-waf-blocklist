@@ -123,9 +123,6 @@ Rhythmic is an AWS Managed Services Provider. We rely heavily on automation to d
 We open source the vast majority of the resources we use to deliver our managed services because transparency is one of our principles.
 
 <!-- BEGINNING OF PRE-COMMIT-TERRAFORM DOCS HOOK -->
-<!-- END OF PRE-COMMIT-TERRAFORM DOCS HOOK -->
-
-<!-- BEGIN_TF_DOCS -->
 ## Requirements
 
 | Name | Version |
@@ -191,4 +188,4 @@ We open source the vast majority of the resources we use to deliver our managed 
 | <a name="output_reconciler_role_arn"></a> [reconciler\_role\_arn](#output\_reconciler\_role\_arn) | ARN of the reconciler execution role. Pass this as hub\_role\_arn to modules/target in each account that owns an IP set |
 | <a name="output_table_arn"></a> [table\_arn](#output\_table\_arn) | ARN of the blocklist DynamoDB table |
 | <a name="output_table_name"></a> [table\_name](#output\_table\_name) | Name of the blocklist DynamoDB table (set BLOCKLIST\_TABLE to this for bin/blocklist) |
-<!-- END_TF_DOCS -->
+<!-- END OF PRE-COMMIT-TERRAFORM DOCS HOOK -->
