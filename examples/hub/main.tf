@@ -1,7 +1,7 @@
-# Hub, applied in the ops account. Modeled on the FEC layout: one ops account
-# owns the table, the IP set and a rule group shared with each environment's
-# workload account. The docquery and external web ACLs in those accounts each
-# add one rule referencing the shared rule group (see examples/consumer).
+# Hub, applied in a central (ops/security) account. It owns the table, the IP
+# set and a rule group shared with each environment's workload account. The
+# web ACLs in those accounts each add one rule referencing the shared rule
+# group (see examples/consumer).
 #
 # Apply this first; the consumers need the rule_group_arn output.
 
@@ -31,11 +31,11 @@ module "blocklist" {
   name = "waf-blocklist"
 
   # dev, stage, prod workload accounts
-  share_with_account_ids = ["473934273253", "181308349486", "944631384106"]
+  share_with_account_ids = ["222222222222", "333333333333", "444444444444"]
 
-  # docquery sits behind CloudFront, which stamps the viewer IP into this
-  # header; the external ALB sees clients directly and matches on source IP.
-  forwarded_ip_headers = ["x-real-viewer-ip"]
+  # For web ACLs behind CloudFront or a proxy that stamps the viewer IP into
+  # a header. ACLs that see clients directly match on source IP instead.
+  forwarded_ip_headers = ["x-client-ip"]
 
   alarm_sns_topic_arns = []
 }

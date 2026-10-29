@@ -3,8 +3,7 @@
 # shared rule group. The rule group does not appear in this account's WAF
 # console listing, but the ARN resolves.
 #
-# FEC: this rule replaces the block-manual-list rule in the docquery and
-# external web ACLs, and the SSM-published manual-block IP set goes away.
+# Typically this rule replaces a hand-maintained IP set rule in the web ACL.
 
 terraform {
   required_version = ">= 1.5"
@@ -22,7 +21,7 @@ provider "aws" {
 }
 
 variable "blocklist_rule_group_arn" {
-  default     = "arn:aws:wafv2:us-east-1:867342139022:regional/rulegroup/waf-blocklist/00000000-0000-0000-0000-000000000000"
+  default     = "arn:aws:wafv2:us-east-1:111111111111:regional/rulegroup/waf-blocklist/00000000-0000-0000-0000-000000000000"
   description = "rule_group_arn output of the hub"
   type        = string
 }
@@ -56,7 +55,7 @@ resource "aws_wafv2_web_acl" "example" {
         # Rule names come from the hub's rule_group_rule_names output. Override
         # to count while validating, then drop the overrides to enforce.
         dynamic "rule_action_override" {
-          for_each = var.blocklist_enforce ? [] : ["block-source-ipv4", "block-forwarded-ipv4-x-real-viewer-ip"]
+          for_each = var.blocklist_enforce ? [] : ["block-source-ipv4", "block-forwarded-ipv4-x-client-ip"]
 
           content {
             name = rule_action_override.value
