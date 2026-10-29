@@ -105,7 +105,7 @@ resource "aws_cloudwatch_log_group" "reconciler" {
 #trivy:ignore:AVD-AWS-0066
 resource "aws_lambda_function" "reconciler" {
   function_name    = "${var.name}-reconciler"
-  description      = "Reconciles the ${var.name} table into ${length(var.targets)} WAFv2 IP set(s)"
+  description      = "Reconciles the ${var.name} table into ${length(local.all_targets)} WAFv2 IP set(s)"
   handler          = "reconcile.lambda_handler"
   role             = aws_iam_role.reconciler.arn
   runtime          = var.lambda_runtime
@@ -122,7 +122,7 @@ resource "aws_lambda_function" "reconciler" {
   environment {
     variables = {
       TABLE_NAME         = aws_dynamodb_table.this.name
-      TARGETS            = jsonencode(var.targets)
+      TARGETS            = jsonencode(local.all_targets)
       MAX_IP_SET_ENTRIES = var.max_ip_set_entries
     }
   }

@@ -1,7 +1,8 @@
-# Target side, applied once in each workload account (FEC: shared-services
-# root, next to the existing manual-block IP set). Creates the role the hub
-# reconciler assumes. Here the IP set already exists and is managed by
-# Terraform with its addresses ignored, exactly like the Tor exit set.
+# Fan-out mode, applied once in each account that owns an IP set the hub
+# should write to directly (for accounts the hub cannot share a rule group
+# with, or CLOUDFRONT-scope sets when the hub is REGIONAL). Creates the role
+# the reconciler assumes. The IP set is managed here with its addresses
+# ignored so Terraform never empties it.
 
 terraform {
   required_version = ">= 1.5"
