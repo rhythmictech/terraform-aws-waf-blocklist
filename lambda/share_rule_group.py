@@ -36,9 +36,13 @@ def lambda_handler(event, context):
         logger.info("removed permission policy from %s", arn)
         return {"rule_group_arn": arn, "action": action, "shared": False}
 
+    # WAF validates the policy against a pattern whose "." does not match
+    # newlines, so a pretty-printed document is rejected; always send it
+    # compact.
     policy = event["policy"]
-    if not isinstance(policy, str):
-        policy = json.dumps(policy)
+    if isinstance(policy, str):
+        policy = json.loads(policy)
+    policy = json.dumps(policy, separators=(",", ":"))
     wafv2.put_permission_policy(ResourceArn=arn, Policy=policy)
     logger.info("applied permission policy to %s: %s", arn, policy)
     return {"rule_group_arn": arn, "action": action, "shared": True}
