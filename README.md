@@ -188,8 +188,8 @@ We open source the vast majority of the resources we use to deliver our managed 
 
 | Name | Version |
 |------|---------|
-| <a name="provider_archive"></a> [archive](#provider\_archive) | 2.8.1 |
-| <a name="provider_aws"></a> [aws](#provider\_aws) | 6.71.0 |
+| <a name="provider_archive"></a> [archive](#provider\_archive) | >= 2.5.0 |
+| <a name="provider_aws"></a> [aws](#provider\_aws) | >= 5.40 |
 
 ## Modules
 

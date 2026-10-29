@@ -35,7 +35,7 @@ module "blocklist_target" {
 
 | Name | Version |
 |------|---------|
-| <a name="provider_aws"></a> [aws](#provider\_aws) | 6.71.0 |
+| <a name="provider_aws"></a> [aws](#provider\_aws) | >= 5.40 |
 
 ## Modules
 

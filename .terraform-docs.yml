@@ -1,0 +1,12 @@
+# Used by the pre-commit terraform_docs hook, which captures stdout and
+# injects it between the markers in README.md itself; do not set output here.
+formatter: markdown table
+
+sort:
+  enabled: true
+  by: name
+
+settings:
+  # Lock files are not committed, so provider tables must come from the
+  # constraints or the output depends on whether init has run.
+  lockfile: false
