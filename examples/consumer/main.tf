@@ -22,7 +22,7 @@ provider "aws" {
 }
 
 variable "blocklist_rule_group_arn" {
-  default     = "arn:aws:wafv2:us-east-1:778098199099:regional/rulegroup/waf-blocklist/00000000-0000-0000-0000-000000000000"
+  default     = "arn:aws:wafv2:us-east-1:867342139022:regional/rulegroup/waf-blocklist/00000000-0000-0000-0000-000000000000"
   description = "rule_group_arn output of the hub"
   type        = string
 }
