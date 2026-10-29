@@ -18,7 +18,7 @@ variable "deletion_protection_enabled" {
 
 variable "forwarded_ip_headers" {
   default     = []
-  description = "Headers carrying the client IP when the web ACL sits behind CloudFront or a proxy, e.g. [\"x-real-viewer-ip\"]. Each adds a rule to the rule group that matches the header instead of the connection source"
+  description = "Headers carrying the client IP when the web ACL sits behind CloudFront or a proxy, e.g. [\"x-client-ip\"]. Each adds a rule to the rule group that matches the header instead of the connection source"
   type        = list(string)
 }
 
