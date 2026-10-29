@@ -16,7 +16,9 @@ jobs:
       - name: initialize Terraform
         run: terraform init --backend=false
       - name: pre-commit
-        uses: pre-commit/action@9b88afc9cd57fd75b655d5c71bd38146d07135fe # v2.0.3
+        # pre-commit/action is pinned to a release that uses the retired
+        # Actions cache API and fails at setup; run the installed tool directly.
+        run: pre-commit run --all-files --show-diff-on-failure
         env:
           AWS_DEFAULT_REGION: us-east-1
           # many of these are covered by better reviewdog linters below
