@@ -5,6 +5,8 @@ repos:
     hooks:
       - id: terraform_docs
         always_run: true
+        args:
+          - --args=--config=.terraform-docs.yml
       - id: terraform_fmt
       - id: terraform_validate
         args:

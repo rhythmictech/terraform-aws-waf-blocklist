@@ -1,9 +1,9 @@
-# Hub side, applied in the ops account. Modeled on the FEC layout: one ops
-# account holds the table and reconciler; each environment's workload account
-# owns a regional IP set that the docquery and external web ACLs reference.
+# Hub, applied in the ops account. Modeled on the FEC layout: one ops account
+# owns the table, the IP set and a rule group shared with each environment's
+# workload account. The docquery and external web ACLs in those accounts each
+# add one rule referencing the shared rule group (see examples/consumer).
 #
-# Apply this first. The targets' role ARNs are predictable from the name each
-# modules/target deployment uses, so they can be listed before they exist.
+# Apply this first; the consumers need the rule_group_arn output.
 
 terraform {
   required_version = ">= 1.5"
@@ -25,33 +25,29 @@ provider "aws" {
   region = "us-east-1"
 }
 
-locals {
-  # account id => manual-block IP set ARN, one per environment
-  workload_ip_sets = {
-    "473934273253" = "arn:aws:wafv2:us-east-1:473934273253:regional/ipset/manual-block-dev/00000000-0000-0000-0000-000000000000"
-    "181308349486" = "arn:aws:wafv2:us-east-1:181308349486:regional/ipset/manual-block-stage/00000000-0000-0000-0000-000000000000"
-    "944631384106" = "arn:aws:wafv2:us-east-1:944631384106:regional/ipset/manual-block-prod/00000000-0000-0000-0000-000000000000"
-  }
-}
-
 module "blocklist" {
   source = "../.."
 
   name = "waf-blocklist"
 
-  targets = [
-    for account, arn in local.workload_ip_sets : {
-      ip_set_arn = arn
-      role_arn   = "arn:aws:iam::${account}:role/waf-blocklist-target"
-    }
-  ]
+  # dev, stage, prod workload accounts
+  share_with_account_ids = ["473934273253", "181308349486", "944631384106"]
+
+  # docquery sits behind CloudFront, which stamps the viewer IP into this
+  # header; the external ALB sees clients directly and matches on source IP.
+  forwarded_ip_headers = ["x-real-viewer-ip"]
 
   alarm_sns_topic_arns = []
 }
 
-output "reconciler_role_arn" {
-  description = "Pass as hub_role_arn to each modules/target deployment"
-  value       = module.blocklist.reconciler_role_arn
+output "rule_group_arn" {
+  description = "Reference from each consuming web ACL"
+  value       = module.blocklist.rule_group_arn
+}
+
+output "rule_group_rule_names" {
+  description = "For rule_action_override in consuming web ACLs"
+  value       = module.blocklist.rule_group_rule_names
 }
 
 output "table_name" {
