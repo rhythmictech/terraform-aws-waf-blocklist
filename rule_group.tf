@@ -206,7 +206,7 @@ resource "aws_lambda_function" "share" {
   runtime          = var.lambda_runtime
   filename         = data.archive_file.share.output_path
   source_code_hash = data.archive_file.share.output_base64sha256
-  timeout          = 30
+  timeout          = 60
   memory_size      = 128
   tags             = local.tags
 
@@ -223,4 +223,9 @@ resource "aws_lambda_invocation" "share" {
     rule_group_arn = aws_wafv2_rule_group.this[0].arn
     policy         = data.aws_iam_policy_document.share[0].json
   })
+
+  # The role policy is scoped to the rule group ARN, so a replacement rule
+  # group updates the policy in the same apply; the invocation must run after
+  # it (and the Lambda retries while IAM catches up).
+  depends_on = [aws_iam_role_policy.share]
 }

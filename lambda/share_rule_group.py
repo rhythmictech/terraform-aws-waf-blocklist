@@ -10,6 +10,7 @@ rather than the provider's.
 import json
 import logging
 import re
+import time
 
 import boto3
 from botocore.exceptions import ClientError
@@ -18,6 +19,22 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 ARN_REGION_RE = re.compile(r"^arn:[^:]+:wafv2:(?P<region>[^:]+):")
+# When the rule group is replaced, the role policy scoped to its ARN is
+# updated in the same apply and IAM takes a few seconds to honor it.
+ACCESS_DENIED_RETRIES = 8
+ACCESS_DENIED_DELAY_SECONDS = 5
+
+
+def _put_with_retry(wafv2, arn, policy):
+    for attempt in range(1, ACCESS_DENIED_RETRIES + 1):
+        try:
+            wafv2.put_permission_policy(ResourceArn=arn, Policy=policy)
+            return
+        except ClientError as exc:
+            if exc.response["Error"]["Code"] != "AccessDeniedException" or attempt == ACCESS_DENIED_RETRIES:
+                raise
+            logger.info("access denied on attempt %d, waiting for IAM propagation", attempt)
+            time.sleep(ACCESS_DENIED_DELAY_SECONDS)
 
 
 def lambda_handler(event, context):
@@ -43,6 +60,6 @@ def lambda_handler(event, context):
     if isinstance(policy, str):
         policy = json.loads(policy)
     policy = json.dumps(policy, separators=(",", ":"))
-    wafv2.put_permission_policy(ResourceArn=arn, Policy=policy)
+    _put_with_retry(wafv2, arn, policy)
     logger.info("applied permission policy to %s: %s", arn, policy)
     return {"rule_group_arn": arn, "action": action, "shared": True}

@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.1.2
+
+- Order the sharing invocation after the share role's policy and retry on AccessDenied, so replacing the rule group (e.g. a capacity change) re-shares it in one apply instead of failing on IAM propagation.
+
 ## 1.1.1
 
 - Send the rule group permission policy to WAF as compact JSON. The pretty-printed document from `aws_iam_policy_document` failed WAF's validation pattern, so sharing never applied.
