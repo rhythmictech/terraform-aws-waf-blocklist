@@ -72,7 +72,7 @@ module "blocklist" {
   # or: share_with_organization_id = "o-xxxxxxxxxx"
 
   # only if some web ACLs sit behind CloudFront or a proxy
-  forwarded_ip_headers = ["x-real-viewer-ip"]
+  forwarded_ip_headers = ["x-client-ip"]
 
   alarm_sns_topic_arns = [aws_sns_topic.ops_alerts.arn]
 }
@@ -233,7 +233,7 @@ We open source the vast majority of the resources we use to deliver our managed 
 | <a name="input_alarm_sns_topic_arns"></a> [alarm\_sns\_topic\_arns](#input\_alarm\_sns\_topic\_arns) | SNS topics to notify when a reconcile run fails (any target could not be updated) | `list(string)` | `[]` | no |
 | <a name="input_create_rule_group"></a> [create\_rule\_group](#input\_create\_rule\_group) | Create IP sets and a rule group in this account that web ACLs reference directly (see share\_with\_account\_ids). Set false to run in fan-out mode with targets only | `bool` | `true` | no |
 | <a name="input_deletion_protection_enabled"></a> [deletion\_protection\_enabled](#input\_deletion\_protection\_enabled) | Enable DynamoDB deletion protection on the blocklist table | `bool` | `true` | no |
-| <a name="input_forwarded_ip_headers"></a> [forwarded\_ip\_headers](#input\_forwarded\_ip\_headers) | Headers carrying the client IP when the web ACL sits behind CloudFront or a proxy, e.g. ["x-real-viewer-ip"]. Each adds a rule to the rule group that matches the header instead of the connection source | `list(string)` | `[]` | no |
+| <a name="input_forwarded_ip_headers"></a> [forwarded\_ip\_headers](#input\_forwarded\_ip\_headers) | Headers carrying the client IP when the web ACL sits behind CloudFront or a proxy, e.g. ["x-client-ip"]. Each adds a rule to the rule group that matches the header instead of the connection source | `list(string)` | `[]` | no |
 | <a name="input_forwarded_ip_position"></a> [forwarded\_ip\_position](#input\_forwarded\_ip\_position) | Which address in a forwarded-IP header to match: FIRST, LAST or ANY | `string` | `"FIRST"` | no |
 | <a name="input_ip_address_versions"></a> [ip\_address\_versions](#input\_ip\_address\_versions) | Address versions to create IP sets for in rule group mode. Table rows are routed to the set of the matching version; rows with no matching set are ignored | `list(string)` | <pre>[<br/>  "IPV4"<br/>]</pre> | no |
 | <a name="input_kms_key_arn"></a> [kms\_key\_arn](#input\_kms\_key\_arn) | KMS key for the blocklist table and Lambda log group. Uses AWS-managed keys when unset | `string` | `null` | no |

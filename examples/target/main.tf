@@ -41,7 +41,7 @@ module "blocklist_target" {
   source = "../../modules/target"
 
   name         = "waf-blocklist-target"
-  hub_role_arn = "arn:aws:iam::778098199099:role/waf-blocklist-reconciler"
+  hub_role_arn = "arn:aws:iam::111111111111:role/waf-blocklist-reconciler"
   ip_set_arns  = [aws_wafv2_ip_set.manual_block.arn]
 }
 
