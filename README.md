@@ -48,6 +48,14 @@ active rows across any number of accounts.
   group (another partition, a CLOUDFRONT-scope set when the hub is REGIONAL),
   `targets` lists IP set ARNs plus a role to assume, and `modules/target`
   creates that role in the owning account. Both modes can run together.
+* **Tor exit feed (optional)**: `tor_exit_enabled` adds a second list to the
+  rule group, with its own IP sets and its own rules. A scheduled Lambda
+  (default hourly) unions the Tor Project's bulk exit list with Onionoo's
+  running exits and replaces the IP sets when they differ. It never writes a
+  list that looks truncated (`tor_exit_min_count`), so a failed or filtered
+  download leaves the last good contents in place, and a CloudWatch alarm
+  fires when runs keep failing. The feed stays out of the table: a thousand
+  addresses churning hourly would bury the audit trail.
 * **`bin/blocklist`** is the write path. It validates and canonicalizes CIDRs,
   defaults the expiry to 90 days, requires a reason, and records the caller.
   `remove` expires a row instead of deleting it so the history survives.
@@ -106,6 +114,58 @@ rule {
 Shared rule groups do not appear in the consumer's WAF console listing, but
 the ARN resolves. The hub's `rule_group_rule_names` output gives the names to
 use in `rule_action_override` for a count-only rollout.
+
+### Tor exit nodes
+
+```hcl
+module "blocklist" {
+  source  = "rhythmictech/waf-blocklist/aws"
+
+  share_with_account_ids = ["222222222222", "333333333333"]
+  forwarded_ip_headers   = ["x-client-ip"]
+
+  tor_exit_enabled = true
+  tor_exit_action  = "count" # observe first, then "block"
+}
+```
+
+The Tor rules are added to the same rule group, after the blocklist rules, so
+**every web ACL that already references the rule group starts matching Tor
+exits as soon as the first sync runs**. No consumer change is needed. Start
+with `tor_exit_action = "count"` unless every consumer should block at once.
+
+To block in the hub but only count in one web ACL, override the Tor rules
+there (names are in the `tor_exit_rule_names` output):
+
+```hcl
+rule_group_reference_statement {
+  arn = var.blocklist_rule_group_arn
+
+  dynamic "rule_action_override" {
+    for_each = ["tor-exit-source-ipv4", "tor-exit-forwarded-ipv4-x-client-ip"]
+
+    content {
+      name = rule_action_override.value
+
+      action_to_use {
+        count {}
+      }
+    }
+  }
+}
+```
+
+A web ACL that sets `override_action { count {} }` on the whole reference
+counts the Tor rules along with the blocklist rules.
+
+Each Tor rule costs about 1 WCU, one per address version plus one per forwarded
+header and version. `rule_group_capacity` cannot change without replacing the
+rule group, so check there is room before enabling the feed. The sync Lambda
+needs outbound HTTPS to `check.torproject.org` and `onionoo.torproject.org`;
+it is not attached to a VPC. The feed needs rule group mode and is ignored
+when `create_rule_group` is false.
+
+### Fan-out mode
 
 Fan-out mode, for IP sets outside the rule group's reach:
 
@@ -202,28 +262,39 @@ We open source the vast majority of the resources we use to deliver our managed 
 | Name | Type |
 |------|------|
 | [aws_cloudwatch_event_rule.schedule](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudwatch_event_rule) | resource |
+| [aws_cloudwatch_event_rule.tor_exit](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudwatch_event_rule) | resource |
 | [aws_cloudwatch_event_target.schedule](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudwatch_event_target) | resource |
+| [aws_cloudwatch_event_target.tor_exit](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudwatch_event_target) | resource |
 | [aws_cloudwatch_log_group.reconciler](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudwatch_log_group) | resource |
 | [aws_cloudwatch_log_group.share](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudwatch_log_group) | resource |
+| [aws_cloudwatch_log_group.tor_exit](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudwatch_log_group) | resource |
 | [aws_cloudwatch_metric_alarm.reconciler_errors](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudwatch_metric_alarm) | resource |
+| [aws_cloudwatch_metric_alarm.tor_exit_errors](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudwatch_metric_alarm) | resource |
 | [aws_dynamodb_table.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/dynamodb_table) | resource |
 | [aws_iam_role.reconciler](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role) | resource |
 | [aws_iam_role.share](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role) | resource |
+| [aws_iam_role.tor_exit](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role) | resource |
 | [aws_iam_role_policy.reconciler](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role_policy) | resource |
 | [aws_iam_role_policy.share](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role_policy) | resource |
+| [aws_iam_role_policy.tor_exit](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role_policy) | resource |
 | [aws_lambda_event_source_mapping.stream](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/lambda_event_source_mapping) | resource |
 | [aws_lambda_function.reconciler](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/lambda_function) | resource |
 | [aws_lambda_function.share](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/lambda_function) | resource |
+| [aws_lambda_function.tor_exit](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/lambda_function) | resource |
 | [aws_lambda_invocation.share](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/lambda_invocation) | resource |
 | [aws_lambda_permission.schedule](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/lambda_permission) | resource |
+| [aws_lambda_permission.tor_exit](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/lambda_permission) | resource |
 | [aws_wafv2_ip_set.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/wafv2_ip_set) | resource |
+| [aws_wafv2_ip_set.tor_exit](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/wafv2_ip_set) | resource |
 | [aws_wafv2_rule_group.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/wafv2_rule_group) | resource |
 | [archive_file.reconciler](https://registry.terraform.io/providers/hashicorp/archive/latest/docs/data-sources/file) | data source |
 | [archive_file.share](https://registry.terraform.io/providers/hashicorp/archive/latest/docs/data-sources/file) | data source |
+| [archive_file.tor_exit](https://registry.terraform.io/providers/hashicorp/archive/latest/docs/data-sources/file) | data source |
 | [aws_iam_policy_document.lambda_assume](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/iam_policy_document) | data source |
 | [aws_iam_policy_document.reconciler](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/iam_policy_document) | data source |
 | [aws_iam_policy_document.share](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/iam_policy_document) | data source |
 | [aws_iam_policy_document.share_lambda](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/iam_policy_document) | data source |
+| [aws_iam_policy_document.tor_exit](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/iam_policy_document) | data source |
 | [aws_partition.current](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/partition) | data source |
 
 ## Inputs
@@ -251,6 +322,10 @@ We open source the vast majority of the resources we use to deliver our managed 
 | <a name="input_stream_maximum_retry_attempts"></a> [stream\_maximum\_retry\_attempts](#input\_stream\_maximum\_retry\_attempts) | Retries for a failed stream-triggered run before the batch is discarded. The scheduled run picks up anything dropped | `number` | `3` | no |
 | <a name="input_tags"></a> [tags](#input\_tags) | User-defined tags | `map(string)` | `{}` | no |
 | <a name="input_targets"></a> [targets](#input\_targets) | Fan-out mode: additional WAFv2 IP sets to keep in sync with the table, in this or other accounts. role\_arn is the role to assume in the owning account (see modules/target); omit it for IP sets in this account | <pre>list(object({<br/>    ip_set_arn = string<br/>    role_arn   = optional(string)<br/>  }))</pre> | `[]` | no |
+| <a name="input_tor_exit_action"></a> [tor\_exit\_action](#input\_tor\_exit\_action) | What the Tor exit rules do inside the rule group: block or count. Consuming web ACLs can still override a blocking rule to count per ACL with rule\_action\_override | `string` | `"block"` | no |
+| <a name="input_tor_exit_enabled"></a> [tor\_exit\_enabled](#input\_tor\_exit\_enabled) | Add Tor exit-node rules to the rule group, backed by IP sets a scheduled Lambda keeps current from the Tor Project's exit lists. The rules reach every web ACL that references the rule group as soon as the first sync runs; set tor\_exit\_action to count to observe first. Ignored when create\_rule\_group is false | `bool` | `false` | no |
+| <a name="input_tor_exit_min_count"></a> [tor\_exit\_min\_count](#input\_tor\_exit\_min\_count) | Refuse to update the Tor exit IP sets when the fetched list has fewer IPv4 exits than this, so a truncated or failed download never shrinks them. The network has carried well over 1,000 exits for years | `number` | `500` | no |
+| <a name="input_tor_exit_schedule_expression"></a> [tor\_exit\_schedule\_expression](#input\_tor\_exit\_schedule\_expression) | EventBridge schedule for the Tor exit sync. The Tor Project's lists refresh roughly hourly | `string` | `"rate(1 hour)"` | no |
 
 ## Outputs
 
@@ -264,4 +339,6 @@ We open source the vast majority of the resources we use to deliver our managed 
 | <a name="output_rule_group_rule_names"></a> [rule\_group\_rule\_names](#output\_rule\_group\_rule\_names) | Names of the rules inside the rule group, for rule\_action\_override in consuming web ACLs |
 | <a name="output_table_arn"></a> [table\_arn](#output\_table\_arn) | ARN of the blocklist DynamoDB table |
 | <a name="output_table_name"></a> [table\_name](#output\_table\_name) | Name of the blocklist DynamoDB table (set BLOCKLIST\_TABLE to this for bin/blocklist) |
+| <a name="output_tor_exit_ip_set_arns"></a> [tor\_exit\_ip\_set\_arns](#output\_tor\_exit\_ip\_set\_arns) | Map of address version to the ARN of the Tor exit IP set (empty unless tor\_exit\_enabled) |
+| <a name="output_tor_exit_rule_names"></a> [tor\_exit\_rule\_names](#output\_tor\_exit\_rule\_names) | Names of the Tor exit rules inside the rule group, for rule\_action\_override in consuming web ACLs |
 <!-- END OF PRE-COMMIT-TERRAFORM DOCS HOOK -->
