@@ -156,10 +156,13 @@ def reconcile_target(target, desired):
                 f"{len(wanted)} IPv{version} entries exceeds the IP set quota "
                 f"{MAX_IP_SET_ENTRIES}; {target['ip_set_arn']} left unchanged"
             )
+        # UpdateIPSet replaces the whole IP set, so an omitted Description is cleared. Send the
+        # current one back, or Terraform sees the description drift after every reconcile.
+        update = {"Addresses": sorted(wanted), "LockToken": current["LockToken"], **lookup}
+        if current["IPSet"].get("Description"):
+            update["Description"] = current["IPSet"]["Description"]
         try:
-            client.update_ip_set(
-                Addresses=sorted(wanted), LockToken=current["LockToken"], **lookup
-            )
+            client.update_ip_set(**update)
         except ClientError as exc:
             if (
                 exc.response["Error"]["Code"] == "WAFOptimisticLockException"
