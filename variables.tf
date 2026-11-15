@@ -158,3 +158,32 @@ variable "targets" {
     error_message = "Each ip_set_arn may appear only once."
   }
 }
+
+variable "tor_exit_action" {
+  default     = "block"
+  description = "What the Tor exit rules do inside the rule group: block or count. Consuming web ACLs can still override a blocking rule to count per ACL with rule_action_override"
+  type        = string
+
+  validation {
+    condition     = contains(["block", "count"], var.tor_exit_action)
+    error_message = "tor_exit_action must be block or count."
+  }
+}
+
+variable "tor_exit_enabled" {
+  default     = false
+  description = "Add Tor exit-node rules to the rule group, backed by IP sets a scheduled Lambda keeps current from the Tor Project's exit lists. The rules reach every web ACL that references the rule group as soon as the first sync runs; set tor_exit_action to count to observe first. Ignored when create_rule_group is false"
+  type        = bool
+}
+
+variable "tor_exit_min_count" {
+  default     = 500
+  description = "Refuse to update the Tor exit IP sets when the fetched list has fewer IPv4 exits than this, so a truncated or failed download never shrinks them. The network has carried well over 1,000 exits for years"
+  type        = number
+}
+
+variable "tor_exit_schedule_expression" {
+  default     = "rate(1 hour)"
+  description = "EventBridge schedule for the Tor exit sync. The Tor Project's lists refresh roughly hourly"
+  type        = string
+}

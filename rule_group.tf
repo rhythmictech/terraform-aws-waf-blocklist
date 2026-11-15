@@ -9,19 +9,33 @@ locals {
 
   # One source-IP rule per address version, plus one rule per forwarded-IP
   # header. A missing header falls back to no match, so the header rules are
-  # inert on web ACLs that see clients directly.
+  # inert on web ACLs that see clients directly. The Tor exit rules (see
+  # tor_exit.tf) follow the blocklist rules so enabling the feed leaves the
+  # existing priorities alone.
+  rule_group_lists = concat(
+    [{ list = "blocklist", prefix = "block", action = "block" }],
+    local.tor_exit_enabled ? [{ list = "tor_exit", prefix = "tor-exit", action = var.tor_exit_action }] : [],
+  )
+
   rule_group_rules = [
     for i, r in flatten([
-      for v in var.ip_address_versions : concat(
-        [{ name = "block-source-${lower(v)}", version = v, header = null }],
-        [for h in var.forwarded_ip_headers : {
-          name    = "block-forwarded-${lower(v)}-${lower(replace(h, "/[^A-Za-z0-9]+/", "-"))}"
-          version = v
-          header  = h
-        }]
-      )
+      for l in local.rule_group_lists : [
+        for v in var.ip_address_versions : concat(
+          [merge(l, { name = "${l.prefix}-source-${lower(v)}", version = v, header = null })],
+          [for h in var.forwarded_ip_headers : merge(l, {
+            name    = "${l.prefix}-forwarded-${lower(v)}-${lower(replace(h, "/[^A-Za-z0-9]+/", "-"))}"
+            version = v
+            header  = h
+          })]
+        )
+      ]
     ]) : merge(r, { priority = i })
   ]
+
+  rule_group_ip_set_arns = {
+    blocklist = { for v, s in aws_wafv2_ip_set.this : v => s.arn }
+    tor_exit  = { for v, s in aws_wafv2_ip_set.tor_exit : v => s.arn }
+  }
 
   share_rule_group = var.create_rule_group && (length(var.share_with_account_ids) > 0 || var.share_with_organization_id != null)
 }
@@ -46,7 +60,7 @@ resource "aws_wafv2_rule_group" "this" {
   count = var.create_rule_group ? 1 : 0
 
   name        = var.name
-  description = "Blocks addresses in the ${var.name} blocklist. Reference from a web ACL with rule_group_reference_statement"
+  description = "Blocks addresses in the ${var.name} blocklist${local.tor_exit_enabled ? " and matches Tor exit nodes" : ""}. Reference from a web ACL with rule_group_reference_statement"
   scope       = var.scope
   capacity    = var.rule_group_capacity
   tags        = local.tags
@@ -59,12 +73,22 @@ resource "aws_wafv2_rule_group" "this" {
       priority = rule.value.priority
 
       action {
-        block {}
+        dynamic "block" {
+          for_each = rule.value.action == "block" ? [1] : []
+
+          content {}
+        }
+
+        dynamic "count" {
+          for_each = rule.value.action == "count" ? [1] : []
+
+          content {}
+        }
       }
 
       statement {
         ip_set_reference_statement {
-          arn = aws_wafv2_ip_set.this[rule.value.version].arn
+          arn = local.rule_group_ip_set_arns[rule.value.list][rule.value.version]
 
           dynamic "ip_set_forwarded_ip_config" {
             for_each = rule.value.header == null ? [] : [rule.value.header]

@@ -37,6 +37,11 @@ module "blocklist" {
   # a header. ACLs that see clients directly match on source IP instead.
   forwarded_ip_headers = ["x-client-ip"]
 
+  # Optional second list: Tor exit nodes, synced hourly. The rules land in
+  # the same rule group, so every consuming web ACL picks them up; count first.
+  tor_exit_enabled = true
+  tor_exit_action  = "count"
+
   alarm_sns_topic_arns = []
 }
 
@@ -48,6 +53,11 @@ output "rule_group_arn" {
 output "rule_group_rule_names" {
   description = "For rule_action_override in consuming web ACLs"
   value       = module.blocklist.rule_group_rule_names
+}
+
+output "tor_exit_rule_names" {
+  description = "For rule_action_override on the Tor exit rules in consuming web ACLs"
+  value       = module.blocklist.tor_exit_rule_names
 }
 
 output "table_name" {

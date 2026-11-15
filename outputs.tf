@@ -37,3 +37,13 @@ output "table_name" {
   description = "Name of the blocklist DynamoDB table (set BLOCKLIST_TABLE to this for bin/blocklist)"
   value       = aws_dynamodb_table.this.name
 }
+
+output "tor_exit_ip_set_arns" {
+  description = "Map of address version to the ARN of the Tor exit IP set (empty unless tor_exit_enabled)"
+  value       = { for v, s in aws_wafv2_ip_set.tor_exit : v => s.arn }
+}
+
+output "tor_exit_rule_names" {
+  description = "Names of the Tor exit rules inside the rule group, for rule_action_override in consuming web ACLs"
+  value       = [for r in local.rule_group_rules : r.name if r.list == "tor_exit"]
+}
