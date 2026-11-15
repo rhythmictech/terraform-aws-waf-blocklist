@@ -146,7 +146,10 @@ resource "aws_wafv2_ip_set" "manual_block" {
 }
 ```
 
-Then manage entries:
+Then manage entries. The CLI declares its one dependency (boto3) as inline script
+metadata, so with [uv](https://docs.astral.sh/uv/) installed it runs as-is: the
+shebang is `uv run --script`, and `uv run bin/blocklist …` works too. Without uv,
+`pip install boto3` and run it with `python3`.
 
 ```
 export BLOCKLIST_TABLE=waf-blocklist

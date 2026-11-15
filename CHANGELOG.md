@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.1.3
+
+- `bin/blocklist` declares boto3 as PEP 723 inline script metadata and uses a `uv run --script` shebang, so it runs without a pre-installed boto3 wherever uv is present (`uv run bin/blocklist …` also works).
+
 ## 1.1.2
 
 - Order the sharing invocation after the share role's policy and retry on AccessDenied, so replacing the rule group (e.g. a capacity change) re-shares it in one apply instead of failing on IAM propagation.
