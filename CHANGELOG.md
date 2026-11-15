@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.2.1
+
+- Keep the IP set description when the reconciler or the Tor exit sync updates addresses. `UpdateIPSet` replaces the whole IP set, so the calls that omitted `Description` cleared it, and every later `terraform plan` showed the description being added back. An IP set that already lost its description gets it back on the next apply and keeps it from then on.
+
 ## 1.2.0
 
 - Optional Tor exit-node feed (`tor_exit_enabled`, off by default). Adds Tor exit IP sets and `tor-exit-*` rules to the shared rule group, kept current by a scheduled Lambda that unions the Tor Project's bulk exit list with Onionoo's running exits. `tor_exit_action` sets block or count, `tor_exit_min_count` stops a truncated download from shrinking the sets, and a CloudWatch alarm reports sustained sync failures to `alarm_sns_topic_arns`. New outputs `tor_exit_ip_set_arns` and `tor_exit_rule_names`.

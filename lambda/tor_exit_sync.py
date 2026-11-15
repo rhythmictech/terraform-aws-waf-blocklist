@@ -152,8 +152,13 @@ def sync_ip_set(arn, desired):
                 f"{len(wanted)} IPv{version} exits exceeds the IP set quota {MAX_IP_SET_ENTRIES}; {arn} left unchanged"
             )
 
+        # UpdateIPSet replaces the whole IP set, so an omitted Description is cleared. Send the
+        # current one back, or Terraform sees the description drift after every sync.
+        update = {"Addresses": sorted(wanted), "LockToken": current["LockToken"], **lookup}
+        if current["IPSet"].get("Description"):
+            update["Description"] = current["IPSet"]["Description"]
         try:
-            client.update_ip_set(Addresses=sorted(wanted), LockToken=current["LockToken"], **lookup)
+            client.update_ip_set(**update)
         except ClientError as exc:
             if exc.response["Error"]["Code"] == "WAFOptimisticLockException" and attempt < LOCK_RETRIES:
                 logger.info("lock token stale for %s, retrying", arn)
