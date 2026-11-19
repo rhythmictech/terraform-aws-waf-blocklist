@@ -80,6 +80,32 @@ data "aws_iam_policy_document" "reconciler" {
       actions   = ["kms:Decrypt"]
     }
   }
+
+  dynamic "statement" {
+    for_each = length(local.cloudflare_secret_arns) > 0 ? [1] : []
+
+    content {
+      effect    = "Allow"
+      resources = local.cloudflare_secret_arns
+      actions   = ["secretsmanager:GetSecretValue"]
+    }
+  }
+
+  dynamic "statement" {
+    for_each = length(local.cloudflare_kms_key_arns) > 0 ? [1] : []
+
+    content {
+      effect    = "Allow"
+      resources = local.cloudflare_kms_key_arns
+      actions   = ["kms:Decrypt"]
+
+      condition {
+        test     = "StringEquals"
+        variable = "kms:ViaService"
+        values   = [for arn in local.cloudflare_secret_arns : "secretsmanager.${split(":", arn)[3]}.amazonaws.com"]
+      }
+    }
+  }
 }
 
 resource "aws_iam_role_policy" "reconciler" {
@@ -105,7 +131,7 @@ resource "aws_cloudwatch_log_group" "reconciler" {
 #trivy:ignore:AVD-AWS-0066
 resource "aws_lambda_function" "reconciler" {
   function_name    = "${var.name}-reconciler"
-  description      = "Reconciles the ${var.name} table into ${length(local.all_targets)} WAFv2 IP set(s)"
+  description      = "Reconciles the ${var.name} table into ${length(local.all_targets)} WAFv2 IP set(s)${length(var.cloudflare_targets) > 0 ? " and ${length(var.cloudflare_targets)} Cloudflare list(s)" : ""}"
   handler          = "reconcile.lambda_handler"
   role             = aws_iam_role.reconciler.arn
   runtime          = var.lambda_runtime
@@ -119,12 +145,21 @@ resource "aws_lambda_function" "reconciler" {
   # same end state. Serializing them keeps the lock-token retries quiet.
   reserved_concurrent_executions = 1
 
+  # The Cloudflare settings are only set when there are Cloudflare targets, so
+  # hubs without any see no change to the function's environment.
   environment {
-    variables = {
-      TABLE_NAME         = aws_dynamodb_table.this.name
-      TARGETS            = jsonencode(local.all_targets)
-      MAX_IP_SET_ENTRIES = var.max_ip_set_entries
-    }
+    variables = merge(
+      {
+        TABLE_NAME         = aws_dynamodb_table.this.name
+        TARGETS            = jsonencode(local.all_targets)
+        MAX_IP_SET_ENTRIES = var.max_ip_set_entries
+      },
+      length(var.cloudflare_targets) > 0 ? {
+        CLOUDFLARE_TARGETS           = jsonencode([for t in var.cloudflare_targets : { account_id = t.account_id, list_id = t.list_id, api_token_secret_arn = t.api_token_secret_arn }])
+        MAX_CLOUDFLARE_LIST_ITEMS    = var.max_cloudflare_list_items
+        CLOUDFLARE_OPERATION_TIMEOUT = var.cloudflare_operation_timeout
+      } : {},
+    )
   }
 
   depends_on = [aws_iam_role_policy.reconciler]

@@ -4,9 +4,45 @@ variable "alarm_sns_topic_arns" {
   type        = list(string)
 }
 
+variable "cloudflare_targets" {
+  default     = []
+  description = "Cloudflare custom IP lists to keep in sync with the table. Each needs the 32-character account and list IDs and a Secrets Manager secret whose SecretString is an API token with Account Filter Lists Edit. kms_key_arn is the secret's customer-managed key, if any. IPv4 and IPv6 rows share the list; each item's comment carries the row's ticket and reason"
+  type = list(object({
+    account_id           = string
+    list_id              = string
+    api_token_secret_arn = string
+    kms_key_arn          = optional(string)
+  }))
+
+  validation {
+    condition = alltrue([
+      for t in var.cloudflare_targets : can(regex("^[0-9a-f]{32}$", t.account_id)) && can(regex("^[0-9a-f]{32}$", t.list_id))
+    ])
+    error_message = "account_id and list_id must be 32-character lowercase hex Cloudflare IDs."
+  }
+
+  validation {
+    condition = alltrue([
+      for t in var.cloudflare_targets : can(regex("^arn:[^:]+:secretsmanager:[^:]+:[0-9]{12}:secret:.+$", t.api_token_secret_arn))
+    ])
+    error_message = "api_token_secret_arn must be a Secrets Manager secret ARN, e.g. arn:aws:secretsmanager:us-east-1:123456789012:secret:cloudflare-lists-AbCdEf."
+  }
+
+  validation {
+    condition     = length(var.cloudflare_targets) == length(distinct([for t in var.cloudflare_targets : t.list_id]))
+    error_message = "Each Cloudflare list_id may appear only once."
+  }
+}
+
+variable "cloudflare_operation_timeout" {
+  default     = 60
+  description = "Seconds the reconciler waits for each Cloudflare bulk replace to finish before failing the run. Keep lambda_timeout above this times the number of Cloudflare targets that change in one run"
+  type        = number
+}
+
 variable "create_rule_group" {
   default     = true
-  description = "Create IP sets and a rule group in this account that web ACLs reference directly (see share_with_account_ids). Set false to run in fan-out mode with targets only"
+  description = "Create IP sets and a rule group in this account that web ACLs reference directly (see share_with_account_ids). Set false to run in fan-out mode with targets and/or cloudflare_targets only"
   type        = bool
 }
 
@@ -58,13 +94,19 @@ variable "lambda_runtime" {
 
 variable "lambda_timeout" {
   default     = 120
-  description = "Reconciler timeout in seconds. Each target costs an assume-role plus two WAF calls"
+  description = "Reconciler timeout in seconds. Each WAFv2 target costs an assume-role plus two WAF calls; a changed Cloudflare target can wait up to cloudflare_operation_timeout"
   type        = number
 }
 
 variable "log_retention_days" {
   default     = 30
   description = "CloudWatch log retention for the reconciler"
+  type        = number
+}
+
+variable "max_cloudflare_list_items" {
+  default     = 10000
+  description = "Refuse to write a Cloudflare list larger than this. Cloudflare's allowance (10,000 on Pro and Business) covers all custom lists in the account together, so lower it when other lists share the account"
   type        = number
 }
 
