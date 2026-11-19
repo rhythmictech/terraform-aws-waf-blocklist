@@ -117,6 +117,13 @@ def collect_exit_cidrs():
     return merged, succeeded
 
 
+def _canonical(cidr):
+    try:
+        return str(ipaddress.ip_network(cidr, strict=False))
+    except ValueError:
+        return cidr
+
+
 def sync_ip_set(arn, desired):
     match = IP_SET_ARN_RE.match(arn)
     if not match:
@@ -132,7 +139,9 @@ def sync_ip_set(arn, desired):
         current = client.get_ip_set(**lookup)
         version = 4 if current["IPSet"]["IPAddressVersion"] == "IPV4" else 6
         wanted = desired[version]
-        existing = set(current["IPSet"]["Addresses"])
+        # WAF returns IPv6 addresses fully expanded (2001:0db8:0000:...), so compare
+        # canonical forms or the IPv6 set looks changed and is rewritten every sync.
+        existing = {_canonical(a) for a in current["IPSet"]["Addresses"]}
 
         result = {
             "ip_set_arn": arn,

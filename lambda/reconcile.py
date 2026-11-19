@@ -137,7 +137,9 @@ def reconcile_target(target, desired):
         current = client.get_ip_set(**lookup)
         version = 4 if current["IPSet"]["IPAddressVersion"] == "IPV4" else 6
         wanted = desired[version]
-        existing = set(current["IPSet"]["Addresses"])
+        # WAF returns IPv6 addresses fully expanded (2001:0db8:0000:...), so compare
+        # canonical forms or every IPv6 set looks changed and is rewritten every run.
+        existing = {normalize_cidr(a) or a for a in current["IPSet"]["Addresses"]}
 
         result = {
             "ip_set_arn": target["ip_set_arn"],
