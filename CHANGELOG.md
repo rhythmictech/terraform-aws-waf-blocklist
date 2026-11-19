@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.2.2
+
+- Compare WAF IP set contents in canonical form. WAF returns IPv6 addresses fully expanded (`2001:0db8:0001:0000:…/48`) while the table holds the compressed form, so the reconciler rewrote every IPv6 IP set on every run, and the Tor exit sync rewrote its IPv6 set every hour, even when nothing had changed. IPv4 sets were not affected. No Terraform change.
+
 ## 1.2.1
 
 - Keep the IP set description when the reconciler or the Tor exit sync updates addresses. `UpdateIPSet` replaces the whole IP set, so the calls that omitted `Description` cleared it, and every later `terraform plan` showed the description being added back. An IP set that already lost its description gets it back on the next apply and keeps it from then on.
