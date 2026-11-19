@@ -22,4 +22,7 @@ locals {
   )
   local_ip_set_arns = [for t in local.all_targets : t.ip_set_arn if t.role_arn == null]
   assume_role_arns  = distinct([for t in var.targets : t.role_arn if t.role_arn != null])
+
+  cloudflare_secret_arns  = distinct([for t in var.cloudflare_targets : t.api_token_secret_arn])
+  cloudflare_kms_key_arns = distinct([for t in var.cloudflare_targets : t.kms_key_arn if t.kms_key_arn != null])
 }

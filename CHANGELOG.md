@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.3.0
+
+- Cloudflare custom IP lists as a reconcile target (`cloudflare_targets`). Each target is an account ID, a list ID and a Secrets Manager secret holding an API token with Account Filter Lists Edit. The reconciler replaces the list's items with the active rows (IPv4 and IPv6 in one list), writes `TICKET: reason` into each item's comment, waits for Cloudflare's asynchronous bulk operation, and only writes when items or comments differ. A Cloudflare failure fails the run like a WAF one, so the existing alarm covers it. New inputs `max_cloudflare_list_items` and `cloudflare_operation_timeout`; new example `examples/cloudflare`.
+- The reconciler's table scan now also reads `reason` and `ticket`. Hubs without `cloudflare_targets` get no new IAM permissions or environment variables, and their WAF IP sets are reconciled exactly as before.
+
 ## 1.2.1
 
 - Keep the IP set description when the reconciler or the Tor exit sync updates addresses. `UpdateIPSet` replaces the whole IP set, so the calls that omitted `Description` cleared it, and every later `terraform plan` showed the description being added back. An IP set that already lost its description gets it back on the next apply and keeps it from then on.

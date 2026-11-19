@@ -1,5 +1,5 @@
 # terraform-aws-waf-blocklist
-A WAF IP set blocklist with a reason and an expiry for every entry.
+A WAF IP set blocklist with a reason and an expiry for every entry, for AWS WAF and Cloudflare.
 
 [![tflint](https://github.com/rhythmictech/terraform-aws-waf-blocklist/actions/workflows/tflint.yaml/badge.svg)](https://github.com/rhythmictech/terraform-aws-waf-blocklist/actions/workflows/tflint.yaml)
 [![trivy](https://github.com/rhythmictech/terraform-aws-waf-blocklist/actions/workflows/trivy.yaml/badge.svg)](https://github.com/rhythmictech/terraform-aws-waf-blocklist/actions/workflows/trivy.yaml)
@@ -48,6 +48,13 @@ active rows across any number of accounts.
   group (another partition, a CLOUDFRONT-scope set when the hub is REGIONAL),
   `targets` lists IP set ARNs plus a role to assume, and `modules/target`
   creates that role in the owning account. Both modes can run together.
+* **Cloudflare IP lists (optional)**: `cloudflare_targets` keeps Cloudflare
+  custom IP lists in sync with the same table, for sites behind Cloudflare's
+  WAF instead of AWS WAF. IPv4 and IPv6 rows share one list. Cloudflare list
+  items have no expiry, so the reconciler does it: expired rows leave the list
+  on the next run, and each item's comment carries the row's ticket and reason.
+  Works with `create_rule_group = false` for a table-plus-reconciler hub with
+  no AWS WAF resources.
 * **Tor exit feed (optional)**: `tor_exit_enabled` adds a second list to the
   rule group, with its own IP sets and its own rules. A scheduled Lambda
   (default hourly) unions the Tor Project's bulk exit list with Onionoo's
@@ -165,6 +172,50 @@ needs outbound HTTPS to `check.torproject.org` and `onionoo.torproject.org`;
 it is not attached to a VPC. The feed needs rule group mode and is ignored
 when `create_rule_group` is false.
 
+### Cloudflare IP lists
+
+```hcl
+module "blocklist" {
+  source  = "rhythmictech/waf-blocklist/aws"
+
+  create_rule_group = false # Cloudflare only; leave true to feed AWS WAF too
+
+  cloudflare_targets = [
+    {
+      account_id           = "023e105f4ecef8ad9ca31a8372d0c353"
+      list_id              = "2c0fc9fa937b11eaa1b71c4d701ab86e"
+      api_token_secret_arn = aws_secretsmanager_secret.cloudflare_lists.arn
+    },
+  ]
+}
+```
+
+* **The list**: create it as a custom list of kind `ip` (Terraform's
+  `cloudflare_list`, or the dashboard) and reference it from a custom rule in
+  each zone, e.g. `ip.src in $waf_blocklist` with action Block. Do not manage
+  its items in Terraform; the reconciler replaces them on every change.
+* **The token**: an API token with Account > Account Filter Lists > Edit on
+  that account, stored as the plain `SecretString` of a Secrets Manager secret
+  in the hub account. The reconciler reads it once per run. Pass the full
+  secret ARN (with its six-character suffix). If the secret uses a
+  customer-managed KMS key, set `kms_key_arn` on the target.
+* **Comments**: `TICKET: reason`, cut to Cloudflare's 500 characters. Rows that
+  canonicalize to the same CIDR have their comments joined with ` | `.
+* **Limits**: Cloudflare IP lists take IPv4 /8 to /32 and IPv6 /12 to /128.
+  Broader rows are left out of the list and fail the run, so the alarm fires;
+  the rest of the list is still written. The item allowance (10,000 on Pro and
+  Business) covers every custom list in the account, so lower
+  `max_cloudflare_list_items` if the account has other lists.
+* **Writes are asynchronous**: replacing a list's items is a Cloudflare bulk
+  operation. The reconciler polls it for up to `cloudflare_operation_timeout`
+  seconds, and Cloudflare allows one pending bulk operation per account, so
+  keep `lambda_timeout` above that timeout times the number of Cloudflare
+  targets. A list is only written when its items or comments differ from the
+  table. Cloudflare rate-limits list writes to 30,000 requests and 1,000,000
+  item changes per 12 hours, far above what the stream trigger produces.
+* **Egress**: the reconciler calls `api.cloudflare.com`; it is not attached to
+  a VPC.
+
 ### Fan-out mode
 
 Fan-out mode, for IP sets outside the rule group's reach:
@@ -221,7 +272,8 @@ bin/blocklist remove 203.0.113.7 --reason "customer confirmed legitimate"
 
 See `examples/hub` and `examples/consumer` for the multi-account layout this
 was built for: one ops account, web ACLs in one account per environment.
-`examples/target` shows fan-out mode.
+`examples/target` shows fan-out mode and `examples/cloudflare` a
+Cloudflare-only hub.
 
 ## Migrating an existing list
 
@@ -305,15 +357,18 @@ We open source the vast majority of the resources we use to deliver our managed 
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
 | <a name="input_alarm_sns_topic_arns"></a> [alarm\_sns\_topic\_arns](#input\_alarm\_sns\_topic\_arns) | SNS topics to notify when a reconcile run fails (any target could not be updated) | `list(string)` | `[]` | no |
-| <a name="input_create_rule_group"></a> [create\_rule\_group](#input\_create\_rule\_group) | Create IP sets and a rule group in this account that web ACLs reference directly (see share\_with\_account\_ids). Set false to run in fan-out mode with targets only | `bool` | `true` | no |
+| <a name="input_cloudflare_operation_timeout"></a> [cloudflare\_operation\_timeout](#input\_cloudflare\_operation\_timeout) | Seconds the reconciler waits for each Cloudflare bulk replace to finish before failing the run. Keep lambda\_timeout above this times the number of Cloudflare targets that change in one run | `number` | `60` | no |
+| <a name="input_cloudflare_targets"></a> [cloudflare\_targets](#input\_cloudflare\_targets) | Cloudflare custom IP lists to keep in sync with the table. Each needs the 32-character account and list IDs and a Secrets Manager secret whose SecretString is an API token with Account Filter Lists Edit. kms\_key\_arn is the secret's customer-managed key, if any. IPv4 and IPv6 rows share the list; each item's comment carries the row's ticket and reason | <pre>list(object({<br/>    account_id           = string<br/>    list_id              = string<br/>    api_token_secret_arn = string<br/>    kms_key_arn          = optional(string)<br/>  }))</pre> | `[]` | no |
+| <a name="input_create_rule_group"></a> [create\_rule\_group](#input\_create\_rule\_group) | Create IP sets and a rule group in this account that web ACLs reference directly (see share\_with\_account\_ids). Set false to run in fan-out mode with targets and/or cloudflare\_targets only | `bool` | `true` | no |
 | <a name="input_deletion_protection_enabled"></a> [deletion\_protection\_enabled](#input\_deletion\_protection\_enabled) | Enable DynamoDB deletion protection on the blocklist table | `bool` | `true` | no |
 | <a name="input_forwarded_ip_headers"></a> [forwarded\_ip\_headers](#input\_forwarded\_ip\_headers) | Headers carrying the client IP when the web ACL sits behind CloudFront or a proxy, e.g. ["x-client-ip"]. Each adds a rule to the rule group that matches the header instead of the connection source | `list(string)` | `[]` | no |
 | <a name="input_forwarded_ip_position"></a> [forwarded\_ip\_position](#input\_forwarded\_ip\_position) | Which address in a forwarded-IP header to match: FIRST, LAST or ANY | `string` | `"FIRST"` | no |
 | <a name="input_ip_address_versions"></a> [ip\_address\_versions](#input\_ip\_address\_versions) | Address versions to create IP sets for in rule group mode. Table rows are routed to the set of the matching version; rows with no matching set are ignored | `list(string)` | <pre>[<br/>  "IPV4"<br/>]</pre> | no |
 | <a name="input_kms_key_arn"></a> [kms\_key\_arn](#input\_kms\_key\_arn) | KMS key for the blocklist table and Lambda log group. Uses AWS-managed keys when unset | `string` | `null` | no |
 | <a name="input_lambda_runtime"></a> [lambda\_runtime](#input\_lambda\_runtime) | Lambda runtime for the reconciler | `string` | `"python3.12"` | no |
-| <a name="input_lambda_timeout"></a> [lambda\_timeout](#input\_lambda\_timeout) | Reconciler timeout in seconds. Each target costs an assume-role plus two WAF calls | `number` | `120` | no |
+| <a name="input_lambda_timeout"></a> [lambda\_timeout](#input\_lambda\_timeout) | Reconciler timeout in seconds. Each WAFv2 target costs an assume-role plus two WAF calls; a changed Cloudflare target can wait up to cloudflare\_operation\_timeout | `number` | `120` | no |
 | <a name="input_log_retention_days"></a> [log\_retention\_days](#input\_log\_retention\_days) | CloudWatch log retention for the reconciler | `number` | `30` | no |
+| <a name="input_max_cloudflare_list_items"></a> [max\_cloudflare\_list\_items](#input\_max\_cloudflare\_list\_items) | Refuse to write a Cloudflare list larger than this. Cloudflare's allowance (10,000 on Pro and Business) covers all custom lists in the account together, so lower it when other lists share the account | `number` | `10000` | no |
 | <a name="input_max_ip_set_entries"></a> [max\_ip\_set\_entries](#input\_max\_ip\_set\_entries) | Refuse to write an IP set larger than this. Matches the default WAFv2 quota; raise only if the quota has been raised | `number` | `10000` | no |
 | <a name="input_name"></a> [name](#input\_name) | Name for the table, reconciler function and IAM role | `string` | `"waf-blocklist"` | no |
 | <a name="input_point_in_time_recovery_enabled"></a> [point\_in\_time\_recovery\_enabled](#input\_point\_in\_time\_recovery\_enabled) | Enable point-in-time recovery on the blocklist table | `bool` | `true` | no |
